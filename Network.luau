@@ -54,7 +54,8 @@ end;
 
 function Network:FireClientToClient(Player: (Player), ...) : ()
   if not Player then
-    error(string.format("Player was not specified when firing function %s.", {...}[1]));
+    local s = {...};
+    error(string.format("Player was not specified when firing function %s.", s[1]));
   end;
 
   Network:FireServer("PUIUS_NETWORK_SPECIAL_BRIDGE", Player, ...);
@@ -62,7 +63,8 @@ end;
 
 function Network:FireClient(Player: (Player), ...) : ()
    if not IsServer and Player then
-     warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", {...}[1]));
+     local s = {...};
+     warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", s[1]));
    elseif not Player then
      error("Player was not specified.");
    end;
@@ -95,6 +97,7 @@ function Network.ConnectOnEvent(Name: (string), Func: (any))
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
 
   table.insert(RemoteEvents[Name], Func);
+  return #RemoteEvents[Name];
 end;
 
 function Network.ConnectOnInvoke(Name: (string), Func: (any))
@@ -103,10 +106,17 @@ function Network.ConnectOnInvoke(Name: (string), Func: (any))
   RemoteFunctions[Name] = Func;
 end;
 
-function Network.Disconnect(Name: (string))
-  assert(RemoteEvents[Name], string.format("Attempted to disconnect unknown function name (%s is an invalid table key)", tostring(Name) or ""));
+function Network.DisconnectAll(Name: (string))
+  assert(RemoteEvents[Name], string.format("Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or ""));
 
   RemoteEvents[Name] = nil;
+end;
+
+function Network.Disconnect(Name: (string), ID: (number))
+  assert(RemoteEvents[Name], string.format("Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or ""));
+  assert(RemoteEvents[Name][ID], string.format("Attempted to remove empty index (%i is an invalid table key)", ID or -1));
+
+  RemoteEvents[Name][ID] = nil;
 end;
 
 if IsServer then

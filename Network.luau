@@ -32,8 +32,13 @@ export type RemoteFunctions = {
 	connection: (string) -> RBXScriptConnection;
 };
 
-RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"] = function(Player, ...)
-  Network:FireClient(Player, ...);
+if IsServer then
+  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"] = {};
+
+  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"][1] = function(Player, ToPlayer, ...)
+    local Args = {...};
+    Network:FireClient(ToPlayer, Args[1], Player, ...);
+  end;
 end;
 
 function Network:FireServer(...) : ()
@@ -54,22 +59,23 @@ end;
 
 function Network:FireClientToClient(Player: (Player), ...) : ()
   if not Player then
-    local s = {...};
-    error(string.format("Player was not specified when firing function %s.", s[1]));
+    local Args = {...};
+    error(string.format("Player was not specified when firing function %s.", Args[1]));
   end;
-
+  
   Network:FireServer("PUIUS_NETWORK_SPECIAL_BRIDGE", Player, ...);
 end;
 
 function Network:FireClient(Player: (Player), ...) : ()
-   if not IsServer and Player then
-     local s = {...};
-     warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", s[1]));
-   elseif not Player then
-     error("Player was not specified.");
-   end;
+  assert(Player, "Player was not specified.");
+
+  if not IsServer then
+    local Args = {...};
+    warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", Args[1]));
+    Network:FireClientToClient(Player, ...);
+  end;
    
-   NetworkEvent:FireClient(Player, ...);
+  NetworkEvent:FireClient(Player, ...);
 end;
 
 function Network:FireAllClientsExcept(Exception: (Player), ...) : ()

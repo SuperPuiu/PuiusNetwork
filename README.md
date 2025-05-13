@@ -18,3 +18,9 @@ void Network.ConnectOnInvoke(Name: string, Func: any);
 void Network.DisconnectAll(Name: string);
 void Network.Disconnect(Name: string, ID: number);
 ```
+
+# Notes
+`FileClientToClient` works only after the module was required on server. Aformentioned method should also NOT be used to replicate something accross ALL clients.
+
+# License
+The module is licensed under the MIT license.

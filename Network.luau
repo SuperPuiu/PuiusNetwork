@@ -16,7 +16,7 @@ local RemoteFunctions: (RemoteFunctions) = {};
 local ReplicatedStorage = game:FindService("ReplicatedStorage");
 local Players = game:FindService("Players");
 
-local NetworkEvent = ReplicatedStorage.NetworkEvent
+local NetworkEvent = ReplicatedStorage.NetworkEvent;
 local NetworkFunction = ReplicatedStorage.NetworkFunction;
 
 local RunService = game:FindService("RunService");

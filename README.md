@@ -22,5 +22,7 @@ void Network.Disconnect(Name: string, ID: number);
 # Notes
 `FileClientToClient` works only after the module was required on server. Aformentioned method should also NOT be used to replicate something accross ALL clients.
 
+`FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.
+
 # License
 The module is licensed under the MIT license.

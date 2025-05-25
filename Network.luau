@@ -2,8 +2,8 @@
 --!native
 --[[
 	Author(s):		WATDAHECKLOL32,SuperPuiu
-	Name:           Network.luau
-	Info:           funny module.
+	Name:         Network.luau
+	Info:         Networking Module.
 	Date: 		    3/1/25
 	Run context:	Shared
 ]]
@@ -32,56 +32,37 @@ export type RemoteFunctions = {
 	connection: (string) -> RBXScriptConnection;
 };
 
-if IsServer then
-  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"] = {};
-
-  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"][1] = function(Player, ToPlayer, ...)
-    local Args = {...};
-    Network:FireClient(ToPlayer, Args[1], Player, ...);
-  end;
-end;
-
 function Network:FireServer(...) : ()
-	if IsServer then
-    error("Attempted to fire event from server to server.");
-	end;
-	
+  assert(not IsServer, "Attempted to fire event from server to server.");
 	NetworkEvent:FireServer(...);	
 end;
 
 function Network:InvokeServer(...) : ()
-	if IsServer then
-		error("Attempted to invoke server from server.");
-	end;
-	
+	assert(not IsServer, "Attempted to invoke server from server.");
 	return NetworkFunction:InvokeServer(...);
 end;
 
 function Network:FireClientToClient(Player: (Player), ...) : ()
-  if not Player then
-    local Args = {...};
-    error(string.format("Player was not specified when firing function %s.", Args[1]));
-  end;
-  
+  assert(Player, string.format("Player was not specified when firing function %s.", ...));
+  assert(not IsServer, "FireClientToClient must not be called from server.");
+
   Network:FireServer("PUIUS_NETWORK_SPECIAL_BRIDGE", Player, ...);
 end;
 
 function Network:FireClient(Player: (Player), ...) : ()
   assert(Player, "Player was not specified.");
-
+  
   if not IsServer then
-    local Args = {...};
-    warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", Args[1]));
+    warn(string.format("Attempted to fire function %s from client to another client. Redirecting to FireClientToClient.", ...));
     Network:FireClientToClient(Player, ...);
+    return;
   end;
    
   NetworkEvent:FireClient(Player, ...);
 end;
 
 function Network:FireAllClientsExcept(Exception: (Player), ...) : ()
-  if not IsServer then
-		return;
-  end;
+  assert(IsServer, "Unable to call method FireAllClientsExcept from client.");
   
   for _, Player in pairs(Players:GetPlayers()) do
     if Player ~= Exception then
@@ -91,10 +72,9 @@ function Network:FireAllClientsExcept(Exception: (Player), ...) : ()
 end;
 
 function Network:InvokeClient(Player: (Player), ...) : ()
-	if not Player then
-		return;
-	end;
-	
+	assert(Player, "Unable to invoke client function without a specified client.");
+  assert(IsServer, "Unable to invoke client from client.");
+
 	return NetworkFunction:InvokeClient(Player, ...);
 end;
 
@@ -108,13 +88,11 @@ end;
 
 function Network.ConnectOnInvoke(Name: (string), Func: (any))
   assert(typeof(Name) == "string", "Attempted to create a remote connection with a Name which is not a string.");
-
   RemoteFunctions[Name] = Func;
 end;
 
 function Network.DisconnectAll(Name: (string))
   assert(RemoteEvents[Name], string.format("Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or ""));
-
   RemoteEvents[Name] = nil;
 end;
 
@@ -126,35 +104,37 @@ function Network.Disconnect(Name: (string), ID: (number))
 end;
 
 if IsServer then
+  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"] = {};
+
+  RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE"][1] = function(Player, ToPlayer, ...)
+    local Args = {...};
+    Network:FireClient(ToPlayer, Args[1], Player, ...);
+  end;
+
+  NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...)
+	  assert(RemoteFunctions[Name], string.format("NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
+	  return RemoteFunctions[Name](Player, ...);
+  end;
+
   NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...)
 	  assert(RemoteEvents[Name], string.format("NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
     for _, Func in pairs(RemoteEvents[Name]) do
 	    Func(Player, ...);
     end;
   end);
-end;
 
-if IsServer then
-  NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...)
-	  assert(RemoteFunctions[Name], string.format("NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
-	  return RemoteFunctions[Name](Player, ...);
-  end;
-end;
-
-if not IsServer then
-  NetworkFunction.OnClientInvoke = function(Name: (string), ...)
-	  assert(RemoteFunctions[Name], string.format("NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
-	  return RemoteFunctions[Name](...);
-  end;
-end;
-
-if not IsServer then
+else
   NetworkEvent.OnClientEvent:Connect(function(Name: (string), ...)
     assert(RemoteEvents[Name], string.format("NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
     for _, Func in pairs(RemoteEvents[Name]) do
 	    Func(...);
     end;
   end);
+
+  NetworkFunction.OnClientInvoke = function(Name: (string), ...)
+	  assert(RemoteFunctions[Name], string.format("NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or ""));
+	  return RemoteFunctions[Name](...);
+  end;
 end;
 
 return Network;

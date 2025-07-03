@@ -22,6 +22,8 @@ void Network.Disconnect(Name: string, ID: number);
 # Notes
 `FileClientToClient` works only after the module was required on server. Aformentioned method should also NOT be used to replicate something accross ALL clients.
 
+To use `FireClientToClient` make sure to delete the `"-disable-puius-bridge"` string from the `Flags` table.
+
 `FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.
 
 # License

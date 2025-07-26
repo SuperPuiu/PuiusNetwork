@@ -74,6 +74,18 @@ function Network.ConnectBinding(Name, Func) : ()
   table.insert(BindedEvents[Name], Func);
 end;
 
+function Network.RemoveBinding(Name, ID)
+  NetworkAssert(BindedEvents[Name], "Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or "");
+  NetworkAssert(BindedEvents[Name][ID], "Attempted to remove invalid index (%s is an invalid table key)", tostring(ID) or "");
+
+  BindedEvents[Name][ID] = nil;
+end;
+
+function Network.RemoveAllBindings(Name)
+  NetworkAssert(BindedEvents[Name], "Attempted to remove unknown bindings (%s is an invalid table key)", tostring(Name) or "");
+  BindedEvents[Name] = nil;
+end;
+
 function Network.ConnectOnEvent(Name: (string), Func: (any)) : ()
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name that is not a string.");
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
@@ -94,7 +106,7 @@ end;
 
 function Network.Disconnect(Name: (string), ID: (number)) : ()
   NetworkAssert(RemoteEvents[Name], "Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or "");
-  NetworkAssert(RemoteEvents[Name][ID], "Attempted to remove empty index (%i is an invalid table key)", ID or -1);
+  NetworkAssert(RemoteEvents[Name][ID], "Attempted to remove invalid index (%s is an invalid table key)", tostring(ID) or "");
 
   RemoteEvents[Name][ID] = nil;
 end;

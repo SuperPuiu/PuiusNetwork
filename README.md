@@ -13,7 +13,7 @@ any  Network:InvokeClient(Player: Player, Name: string, ...);
 
 void Network:FireClientToClient(Player: Player, Name: string, ...);
 void Network:FireAllClientsExcept(Exception: Player, Name: string, ...);
-void Network:FireAllClientsUnreliable(Exception: Player, Name: string, ...);
+void Network:FireAllClientsExceptUnreliable(Exception: Player, Name: string, ...);
 
 void Network:CallBinding(Name: string, ...);
 

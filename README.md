@@ -11,15 +11,18 @@ void Network:FireClientUnreliable(Name: string, ...);
 any  Network:InvokeServer(Name: string, ...);
 any  Network:InvokeClient(Player: Player, Name: string, ...);
 
-void Network:FireClientToClient(Player: Player, Name: string, ...);
 void Network:FireAllClientsExcept(Exception: Player, Name: string, ...);
 void Network:FireAllClientsExceptUnreliable(Exception: Player, Name: string, ...);
 
 void Network:CallBinding(Name: string, ...);
 
 int  Network.ConnectOnEvent(Name: string, Func: any);
+int  Network.ConnectOnEventSanitized(Name: string, SanitizerTable: table, Func: any);
 int  Network.ConnectBinding(Name: string, Func: any);
 void Network.ConnectOnInvoke(Name: string, Func: any);
+
+void Network.ModifyConnectionSanitizer(Connection: string, ID: number, Sanitizer: table);
+bool Network.ModifyConnectionConfiguration(Connection: string, ID: number, Entry: string, State: any);
 
 void Network.RemoveBinding(Name: string, ID: number);
 void Network.RemoveAllBindings(Name: string);
@@ -28,9 +31,25 @@ void Network.Disconnect(Name: string, ID: number);
 ```
 
 # Notes
-`FileClientToClient` works only after the module was required on server. Aformentioned method should also NOT be used to replicate something accross ALL clients. If you want to fire to all clients from a client, use the specialized `FireAllClientsExcept` variant from the client. Or even better, don't use either of those functions due to their security problems.
+A connection's configuration can have the following table:
+```lua
+{
+  Variadic = bool,
+  Sanitize = {
+    Enabled = bool,
+    Arguments = {
+      {
+        Type = string,
+        Nullable = bool
+      },
+      
+      ...
+    }
+  }
+}
+```
 
-To use `FireClientToClient` and its family of functions make sure to delete the `"-disable-puius-bridge"` string from the `Flags` table.
+Although not required, it is recommended that you set Variadic bool to true if your function is a variadic function. This hels a bit with sanitizer's false negatives.
 
 `FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.
 

@@ -49,6 +49,23 @@ A connection's configuration can have the following table:
 }
 ```
 
+ConnectOnEventSanitized excepts the following table structure:
+```lua
+{
+  {
+    Type = string,
+    Nullable = bool,
+  },
+  
+  {
+    Type = string,
+    Nullable = bool,
+  },
+
+  ...
+}
+```
+
 Although not required, it is recommended that you set Variadic bool to true if your function is a variadic function. This hels a bit with sanitizer's false negatives.
 
 `FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.

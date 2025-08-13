@@ -8,6 +8,7 @@
 ]]
 
 local Network = {};
+local SanitizedEvents = {};
 local RemoteEvents: (RemoteEvents) = {};
 local RemoteFunctions: (RemoteFunctions) = {};
 local BindedEvents: (Bindings) = {};
@@ -23,7 +24,8 @@ local RunService = game:FindService("RunService");
 local IsServer: (boolean) = RunService:IsServer();
 
 local Flags = {
-  "-disable-puius-bridge"
+  -- -silence-sanitizer-warnings
+  "-sanitizer-strict"
 };
 
 export type RemoteEvents = {
@@ -52,10 +54,56 @@ local function NetworkAssert(Condition, ...)
   end;
 end;
 
+local function Sanitize(Data, ...)
+  local Arguments = {...};
+  local TableLen = #Arguments - 1;
+  local Silence = table.find(Flags, "-silence-sanitizer-warnings");
+  
+  if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments and not table.find(Flags, "-silence-sanitizer-warnings") then 
+    local Message = "Less or more arguments than sanitized arguments detected.";
+    local IsStrict = table.find(Flags, "-sanitizer-strict");
+
+    if IsStrict then
+      warn(Message);
+      return false;
+    else
+      warn(Message);
+      warn("Continuing check anyways.");
+    end;
+  end;
+
+  for Index, ArgProperties in pairs(Data.Configuration.Sanitize.Arguments) do
+    if Index > TableLen then break; end;
+
+    local Arg = Arguments[Index + 1];
+
+    if Arg == nil and not ArgProperties.Nullable then
+      if not Silence then warn(string.format("Argument %i is nil although it's not Nullable.", Index + 1)); end;
+      return false;
+    end;
+    
+    if typeof(Arg) ~= ArgProperties.Type then
+      if not Silence then warn(string.format("Argument %i is of unexpected type (Argument is of type \"%s\" while \"%s\" was expected.)", Index + 1, typeof(Arg), ArgProperties.Type)); end;
+      return false;
+    end;
+  end;
+  
+  return true;
+end;
+
 local function CallEventsCallbacks(Name, ...) : ()
   NetworkAssert(RemoteEvents[Name], "NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
-  for _, Func in pairs(RemoteEvents[Name]) do
-    Func(...);
+  
+  for _, Data in pairs(RemoteEvents[Name]) do
+    local Safe = true;
+    
+    if Data.Configuration.Sanitize.Enabled then
+      Safe = Sanitize(Data, ...);
+    end;
+    
+    if not Safe then continue; end;
+    
+    Data.Connection(...);
   end;
 end;
 
@@ -86,12 +134,43 @@ function Network.RemoveAllBindings(Name)
   BindedEvents[Name] = nil;
 end;
 
-function Network.ConnectOnEvent(Name: (string), Func: (any)) : ()
+function Network.ConnectOnEventSanitized(Name: (string), SanitizerTable: (table), Func: (any))
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name that is not a string.");
+  NetworkAssert(typeof(SanitizerTable) == "table", "Attempted to create a remote sanitized connection with wrong SanitizerTable table type.");
+  
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
-
-  table.insert(RemoteEvents[Name], Func);
+  if not SanitizerTable.Enabled then SanitizerTable.Enabled = true; end;
+  
+  table.insert(RemoteEvents[Name], {Connection = Func, Configuration = {Sanitize = SanitizerTable}});
   return #RemoteEvents[Name];
+end;
+
+function Network.ModifyConnectionSanitizer(Connection: (string), ID: (number), Sanitizer: (table))
+  NetworkAssert(typeof(Sanitizer) == "table", "Attempted to change connection sanitizer with invalid table.");
+  NetworkAssert(typeof(Connection) == "string", "Attempted to change invalid connection index.");
+  
+  RemoteEvents[Connection][ID].Configuration.Sanitize = Sanitizer;
+end;
+
+function Network.ModifyConnectionConfiguration(Connection: (string), ID: (number), Entry: (string), State: (any))
+  NetworkAssert(typeof(ID) == "number", "Attempted to change invalid connection index.");
+  NetworkAssert(typeof(Connection) == "string", "Attempted to change invalid connection name's index.");
+  NetworkAssert(typeof(Entry) == "string", "Attempted to change entry of invalid name (expected string as Entry argument).");
+  NetworkAssert(RemoteEvents[Connection], "%s connection name does not exist.", tostring(Connection) or "NON_STRING");
+  NetworkAssert(RemoteEvents[Connection][ID], "%s does not exist in the %s connection table.", tostring(ID) or "NON_STRING", Connection);
+  
+  if Entry == "Connection" or Entry == "Sanitize" then
+    warn("Connection and Sanitize entries may not be manually modified.");
+    return false;
+  end;
+  
+  RemoteEvents[Connection][ID].Configuration[Entry] = State;
+  
+  return true;
+end;
+
+function Network.ConnectOnEvent(Name: (string), Func: (any)) : ()
+  return Network.ConnectOnEventSanitized(Name, {Sanitize = {Enabled = false}}, Func);
 end;
 
 function Network.ConnectOnInvoke(Name: (string), Func: (any)) : ()
@@ -117,22 +196,21 @@ if IsServer then
     NetworkFunction.Name = "NetworkFunction";
     NetworkFunction.Parent = game.ReplicatedStorage;
   end;
-  
+
   if not NetworkEvent then
     NetworkEvent = Instance.new("RemoteEvent");
     NetworkEvent.Name = "NetworkEvent";
     NetworkEvent.Parent = game.ReplicatedStorage;
   end;
-  
+
   if not NetworkUnreliable then
     NetworkUnreliable = Instance.new("UnreliableRemoteEvent");
     NetworkUnreliable.Name = "NetworkUnreliable";
     NetworkUnreliable.Parent = game.ReplicatedStorage;
   end;
-  
+
   function Network:FireClient(Player: (Player), ...) : ()
     NetworkAssert(Player, "Player was not specified.");
-    NetworkAssert(IsServer, "Attempted to fire a function from client to another client. Maybe you could use FireClientToClient?");
 
     NetworkEvent:FireClient(Player, ...);
   end;
@@ -153,7 +231,7 @@ if IsServer then
       end;
     end;
   end;
-  
+
   function Network:FireAllClientsExceptUnreliable(Exception: (Player), ...) : ()
     NetworkAssert(IsServer, "Unable to call method FireAllClientsExcept from client.");
 
@@ -170,24 +248,7 @@ if IsServer then
 
     return NetworkFunction:InvokeClient(Player, ...);
   end;
-  
-  if not table.find(Flags, "-disable-puius-bridge") then
-    RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE_CTC"] = {};
-    RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE_CTCsE"] = {};
-    
-    RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE_CTC"][1] = function(Player, ToPlayer, ...)
-      local Args = {...};
-      local Name = table.remove(Args, 1);
-      Network:FireClient(ToPlayer, Name, Player, table.unpack(Args));
-    end;
-    
-    RemoteEvents["PUIUS_NETWORK_SPECIAL_BRIDGE_CTCsE"][1] = function(Player, Exception, ...)
-      local Args = {...};
-      local Name = table.remove(Args, 1);
-      Network:FireAllClientsExcept(Exception, Name, Player, table.unpack(Args));
-    end;
-  end;
-  
+
   NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...)
     NetworkAssert(RemoteFunctions[Name], "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
     return RemoteFunctions[Name](Player, ...);
@@ -196,7 +257,7 @@ if IsServer then
   NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...)
     CallEventsCallbacks(Name, Player, ...);
   end);
-  
+
   NetworkUnreliable.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...)
     CallEventsCallbacks(Name, Player, ...);
   end);
@@ -204,15 +265,15 @@ else
   if not NetworkFunction then
     NetworkFunction = game.ReplicatedStorage:WaitForChild("NetworkFunction");
   end;
-  
+
   if not NetworkEvent then
     NetworkEvent = game.ReplicatedStorage:WaitForChild("NetworkEvent");
   end;
-  
+
   if not NetworkUnreliable then
     NetworkUnreliable = game.ReplicatedStorage:WaitForChild("NetworkUnreliable");
   end;
-  
+
   function Network:FireServer(...) : ()
     NetworkAssert(not IsServer, "Attempted to fire event from server to server.");
     NetworkEvent:FireServer(...);	
@@ -227,23 +288,11 @@ else
     NetworkAssert(not IsServer, "Attempted to invoke server from server.");
     return NetworkFunction:InvokeServer(...);
   end;
-  
-  function Network:FireClientToClient(Player: (Player), ...) : ()
-    NetworkAssert(Player, "Player was not specified when firing function %s.", ...);
-    NetworkAssert(not IsServer, "FireClientToClient must not be called from server.");
-    NetworkAssert(not table.find(Flags, "-disable-puius-bridge"), "FireClientToClient cannot be used when the special bridge is disabled.");
 
-    Network:FireServer("PUIUS_NETWORK_SPECIAL_BRIDGE_CTC", Player, ...);
-  end;
-  
-  function Network:FireAllClientsExcept(Exception: (Player), ...) : ()
-    Network:FireServer("PUIUS_NETWORK_SPECIAL_BRIDGE_CTCsE", Exception, ...);
-  end;
-  
   NetworkEvent.OnClientEvent:Connect(function(Name: (string), ...)
     CallEventsCallbacks(Name, ...);
   end);
-  
+
   NetworkUnreliable.OnClientEvent:Connect(function(Name: (string), ...)
     CallEventsCallbacks(Name, ...);
   end);

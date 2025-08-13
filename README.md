@@ -52,17 +52,19 @@ A connection's configuration can have the following table:
 ConnectOnEventSanitized excepts the following table structure:
 ```lua
 {
-  {
-    Type = string,
-    Nullable = bool,
-  },
+  Arguments = { 
+    {
+      Type = string,
+      Nullable = bool,
+    },
   
-  {
-    Type = string,
-    Nullable = bool,
-  },
+    {
+      Type = string,
+      Nullable = bool,
+    },
 
-  ...
+    ...
+  }
 }
 ```
 

@@ -17,7 +17,7 @@ void Network:FireAllClientsExceptUnreliable(Exception: Player, Name: string, ...
 void Network:CallBinding(Name: string, ...);
 
 int  Network.ConnectOnEvent(Name: string, Func: any);
-int  Network.ConnectOnEventSanitized(Name: string, SanitizerTable: table, Func: any);
+int  Network.ConnectOnEventSanitized(Name: string, SanitizerTable: table OR nil, Func: any);
 int  Network.ConnectBinding(Name: string, Func: any);
 void Network.ConnectOnInvoke(Name: string, Func: any);
 
@@ -73,6 +73,8 @@ Although not required, it is recommended that you set Variadic bool to true if y
 `FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.
 
 The "unreliable" variants of the methods denote that they're going through an `UnreliableRemoteEvent`.
+
+Passing `nil` as sanitized arguments to `ConnectOnEventSanitized` is like calling `ConnectOnEvent`.
 
 # License
 The module is licensed under the MIT license.

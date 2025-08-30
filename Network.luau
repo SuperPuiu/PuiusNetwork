@@ -24,8 +24,8 @@ local RunService = game:FindService("RunService");
 local IsServer: (boolean) = RunService:IsServer();
 
 local Flags = {
-  -- -silence-sanitizer-warnings
-  "-sanitizer-strict"
+  ["-silence-sanitizer-warnings"] = false,
+  ["-sanitizer-strict"] = true
 };
 
 export type RemoteEvents = {
@@ -54,19 +54,19 @@ local function NetworkAssert(Condition, ...)
   end;
 end;
 
-local function Sanitize(Data, ...)
+local function Sanitize(Data, FunctionName, ...)
   local Arguments = {...};
   local TableLen = #Arguments - 1;
-  local Silence = table.find(Flags, "-silence-sanitizer-warnings");
-  
-  if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments and not table.find(Flags, "-silence-sanitizer-warnings") then 
-    local Message = "Less or more arguments than sanitized arguments detected.";
-    local IsStrict = table.find(Flags, "-sanitizer-strict");
+  local Silence = Flags["-silence-sanitizer-warnings"];
 
+  if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments then 
+    local Message = string.format("Less or more arguments than sanitized arguments detected for %s. (expected %i got %i)", FunctionName, #Data.Configuration.Sanitize.Arguments, TableLen);
+    local IsStrict = Flags["-sanitizer-strict"];
+    
     if IsStrict then
-      warn(Message);
+      if not Silence then warn(Message); end;
       return false;
-    else
+    elseif not Silence then
       warn(Message);
       warn("Continuing check anyways.");
     end;
@@ -81,28 +81,28 @@ local function Sanitize(Data, ...)
       if not Silence then warn(string.format("Argument %i is nil although it's not Nullable.", Index + 1)); end;
       return false;
     end;
-    
+
     if typeof(Arg) ~= ArgProperties.Type then
       if not Silence then warn(string.format("Argument %i is of unexpected type (Argument is of type \"%s\" while \"%s\" was expected.)", Index + 1, typeof(Arg), ArgProperties.Type)); end;
       return false;
     end;
   end;
-  
+
   return true;
 end;
 
 local function CallEventsCallbacks(Name, ...) : ()
   NetworkAssert(RemoteEvents[Name], "NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
-  
+
   for _, Data in pairs(RemoteEvents[Name]) do
     local Safe = true;
-    
+
     if Data.Configuration.Sanitize.Enabled then
-      Safe = Sanitize(Data, ...);
+      Safe = Sanitize(Data, Name, ...);
     end;
-    
+
     if not Safe then continue; end;
-    
+
     Data.Connection(...);
   end;
 end;
@@ -136,11 +136,14 @@ end;
 
 function Network.ConnectOnEventSanitized(Name: (string), SanitizerTable: (table), Func: (any))
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name that is not a string.");
-  NetworkAssert(typeof(SanitizerTable) == "table", "Attempted to create a remote sanitized connection with wrong SanitizerTable table type.");
+  NetworkAssert(typeof(SanitizerTable) == "table" or SanitizerTable == nil, "Attempted to create a remote sanitized connection with wrong SanitizerTable table type.");
+  local IsEmpty = SanitizerTable ~= nil;
+  
+  if SanitizerTable == nil then SanitizerTable = {}; end;
   
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
-  if not SanitizerTable.Enabled then SanitizerTable.Enabled = true; end;
-  
+  if typeof(SanitizerTable.Enabled) ~= "boolean" then SanitizerTable.Enabled = IsEmpty; end;
+
   table.insert(RemoteEvents[Name], {Connection = Func, Configuration = {Sanitize = SanitizerTable}});
   return #RemoteEvents[Name];
 end;
@@ -148,7 +151,7 @@ end;
 function Network.ModifyConnectionSanitizer(Connection: (string), ID: (number), Sanitizer: (table))
   NetworkAssert(typeof(Sanitizer) == "table", "Attempted to change connection sanitizer with invalid table.");
   NetworkAssert(typeof(Connection) == "string", "Attempted to change invalid connection index.");
-  
+
   RemoteEvents[Connection][ID].Configuration.Sanitize = Sanitizer;
 end;
 
@@ -158,19 +161,19 @@ function Network.ModifyConnectionConfiguration(Connection: (string), ID: (number
   NetworkAssert(typeof(Entry) == "string", "Attempted to change entry of invalid name (expected string as Entry argument).");
   NetworkAssert(RemoteEvents[Connection], "%s connection name does not exist.", tostring(Connection) or "NON_STRING");
   NetworkAssert(RemoteEvents[Connection][ID], "%s does not exist in the %s connection table.", tostring(ID) or "NON_STRING", Connection);
-  
+
   if Entry == "Connection" or Entry == "Sanitize" then
     warn("Connection and Sanitize entries may not be manually modified.");
     return false;
   end;
-  
+
   RemoteEvents[Connection][ID].Configuration[Entry] = State;
-  
+
   return true;
 end;
 
 function Network.ConnectOnEvent(Name: (string), Func: (any)) : ()
-  return Network.ConnectOnEventSanitized(Name, {Sanitize = {Enabled = false}}, Func);
+  return Network.ConnectOnEventSanitized(Name, nil, Func);
 end;
 
 function Network.ConnectOnInvoke(Name: (string), Func: (any)) : ()

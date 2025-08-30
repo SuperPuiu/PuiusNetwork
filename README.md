@@ -30,6 +30,14 @@ void Network.DisconnectAll(Name: string);
 void Network.Disconnect(Name: string, ID: number);
 ```
 
+# Testing
+To use the basic testing suite, you may use the following script:
+```lua
+local NetworkTest = require(script.Parent.NetworkTest);
+NetworkTest.CheckHealth();
+```
+Both `NetworkTest` and `Network` modules **MUST** be under the same parent.
+
 # Notes
 A connection's configuration can have the following table:
 ```lua

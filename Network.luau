@@ -60,7 +60,7 @@ end;
 local function Sanitize(Data, FunctionName, ...)
 	local Arguments = {...};
 	local TableLen = #Arguments - 1;
-	local Silence = Flags["-silence-sanitizer-warnings"];watdahecklol32 
+	local Silence = Flags["-silence-sanitizer-warnings"]; 
 
 	if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments then 
 		local Message = string.format("Less or more arguments than sanitized arguments detected for %s. (expected %i got %i)", FunctionName, #Data.Configuration.Sanitize.Arguments, TableLen);

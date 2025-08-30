@@ -13,6 +13,8 @@ any  Network:InvokeClient(Player: Player, Name: string, ...);
 
 void Network:FireAllClientsExcept(Exception: Player, Name: string, ...);
 void Network:FireAllClientsExceptUnreliable(Exception: Player, Name: string, ...);
+void Network:FireAllClients(Name: string, ...);
+void Network:FireAllClientsUnreliable(Name: string, ...);
 
 void Network:CallBinding(Name: string, ...);
 
@@ -78,7 +80,7 @@ ConnectOnEventSanitized excepts the following table structure:
 
 Although not required, it is recommended that you set Variadic bool to true if your function is a variadic function. This helps a bit with sanitizer's false negatives.
 
-`FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers.
+`FireAllClientsExcept` works with Exception as `nil` as well, which makes it work like the `:FireAllClients` method roblox normally offers. Alternatively, you may call `FireAllClients` for conveniance.
 
 The "unreliable" variants of the methods denote that they're going through an `UnreliableRemoteEvent`.
 

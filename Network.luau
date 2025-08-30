@@ -5,6 +5,12 @@
 	Info:         Networking module.
 	Creation: 		3/1/25 (MM/DD/YY)
 	Run context:	Shared
+	
+	Changelog:
+	* Fix ConnectBinding not returning the index of the new connection;
+	* Fix ConnectBinding accepting any non function as second argument;
+	* Fix ConnectOnEventSanitized accepting any non function as third argument;
+	* Fix ConnectOnInvoke accepting any non function as second argument;
 ]]
 
 local Network = {};
@@ -62,7 +68,7 @@ local function Sanitize(Data, FunctionName, ...)
   if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments then 
     local Message = string.format("Less or more arguments than sanitized arguments detected for %s. (expected %i got %i)", FunctionName, #Data.Configuration.Sanitize.Arguments, TableLen);
     local IsStrict = Flags["-sanitizer-strict"];
-    
+
     if IsStrict then
       if not Silence then warn(Message); end;
       return false;
@@ -117,9 +123,12 @@ end;
 
 function Network.ConnectBinding(Name, Func) : ()
   NetworkAssert(typeof(Name) == "string", "Attempted to connect binding with invalid Name. (string expected, got %s)", typeof(Name));
+  NetworkAssert(typeof(Func) == "function", "Attempted to connect binding with invalid Func. (function expected, got %s)", typeof(Func));
+  
   if not BindedEvents[Name] then BindedEvents[Name] = {}; end;
 
   table.insert(BindedEvents[Name], Func);
+  return #BindedEvents[Name];
 end;
 
 function Network.RemoveBinding(Name, ID)
@@ -136,11 +145,12 @@ end;
 
 function Network.ConnectOnEventSanitized(Name: (string), SanitizerTable: (table), Func: (any))
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name that is not a string.");
-  NetworkAssert(typeof(SanitizerTable) == "table" or SanitizerTable == nil, "Attempted to create a remote sanitized connection with wrong SanitizerTable table type.");
+  NetworkAssert(typeof(SanitizerTable) == "table" or SanitizerTable == nil, "Attempted to create a remote connection with wrong SanitizerTable table type.");
+  NetworkAssert(typeof(Func) == "function", "Attempted to create a remote connection with a non function argument (expected function, got %s)", typeof(Func));
   local IsEmpty = SanitizerTable ~= nil;
-  
+
   if SanitizerTable == nil then SanitizerTable = {}; end;
-  
+
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
   if typeof(SanitizerTable.Enabled) ~= "boolean" then SanitizerTable.Enabled = IsEmpty; end;
 
@@ -178,6 +188,8 @@ end;
 
 function Network.ConnectOnInvoke(Name: (string), Func: (any)) : ()
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name which is not a string.");
+  NetworkAssert(typeof(Func) == "function", "Attempted to create a remote connection with incorrect Func argument (expected function, got %s)", typeof(Func));
+  
   RemoteFunctions[Name] = Func;
 end;
 

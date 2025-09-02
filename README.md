@@ -19,12 +19,16 @@ void Network:FireAllClientsUnreliable(Name: string, ...);
 void Network:CallBinding(Name: string, ...);
 
 int  Network.ConnectOnEvent(Name: string, Func: any);
+int  Network.ConnectOnEventOnce(Name: string, Func: any);
 int  Network.ConnectOnEventSanitized(Name: string, SanitizerTable: table OR nil, Func: any);
 int  Network.ConnectBinding(Name: string, Func: any);
+ints Network:DefineEvents(SanitizerTable: table, Events: table);
 void Network.ConnectOnInvoke(Name: string, Func: any);
 
 void Network.ModifyConnectionSanitizer(Connection: string, ID: number, Sanitizer: table);
 bool Network.ModifyConnectionConfiguration(Connection: string, ID: number, Entry: string, State: any);
+
+bool Network:WaitForEvent(ConnectionName: string, Player: Player, ConnectionType: number);
 
 void Network.RemoveBinding(Name: string, ID: number);
 void Network.RemoveAllBindings(Name: string);
@@ -40,6 +44,88 @@ NetworkTest.CheckHealth();
 ```
 Both `NetworkTest` and `Network` modules **MUST** be under the same parent.
 
+# DefineEvents
+If you'd like to define multiple events in one Network call, you can use `DefineEvents`. SanitizerTable should look as it follows:
+```
+{
+  Event1_Name = {
+    Arguments = {
+      {
+        Type = string,
+        Nullable = bool,
+        ...
+      },
+
+      {
+        Type = string,
+        Nullable = bool,
+        ...
+      },
+
+      ...
+    }
+  },
+
+  ...
+}
+```
+Where all sanitization table keys (in the example from above, Event1_Name) **must** have a matching event name.
+
+The Events table should look as it follows:
+```
+{
+  Event1_Name = function,
+  Event2_Name = function,
+  ...
+}
+```
+
+Full example:
+```lua
+-- Assuming we're on server
+local Network = require(game.ReplicatedStorage.NetworkModule);
+
+local Sanitizer = {
+  HelloWorld = {
+    Arguments = {
+      {
+        Type = "string",
+        Nullable = false
+        MaxLength = 256
+      },
+
+      {
+        Type = "number",
+        Nullable = false
+      }
+    }
+  }
+};
+
+local Events = {
+  HelloWorld = function(Player, Message)
+    print(Message);
+  end);
+};
+
+Network:DefineEvents(Sanitizer, Events);
+```
+
+SanitizerTable can also be nil:
+```lua
+local Network = require(game.ReplicatedStorage.NetworkModule);
+local Events = {
+  a = function(_, Message)
+    print(Message);
+  end),
+
+  b = function(_, Number)
+    print(Number);
+  end)
+},
+
+Network:DefineEvents(nil, Events);
+```
 # Notes
 A connection's configuration can have the following table:
 ```lua

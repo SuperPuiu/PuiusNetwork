@@ -1,5 +1,5 @@
 # PuiusNetwork
-ROBLOX networking module.
+PuiusNetwork is a module used to unify and pass all events a game could have through one single RemoteEvent, RemoteFunction, BindableEvent or UnreliableRemoteEvent. It provides everything you'd normally get from vanilla networking while developing games within the ROBLOX engine.
 
 # API
 Synopsys:

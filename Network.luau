@@ -1,21 +1,20 @@
+--!nocheck
 --!native
 --[[
-	Author(s):		WATDAHECKLOL32,SuperPuiu
+	Author(s):    WATDAHECKLOL32,SuperPuiu
 	Name:         Network.luau
 	Info:         Networking module.
-	Creation: 		3/1/25 (MM/DD/YY)
-	Run context:	Shared
+	Creation:     3/1/25 (MM/DD/YY)
+	Run context:  Shared
 	
 	Changelog:
-	* Implemented WaitForEvent. - @SuperPuiu
-	* Implemented DefineEvents. - @watdahecklol32
-	* Implemented ConnectOnEventOnce. - @SuperPuiu
-	* Implemented new sanitization options for numbers and strings:
-	  - strings: MaxLength, specifying what's the maximum length accepted. Option is optional;
-	  - numbers: Smallest and Largest, specifying what's the limit between which the number is accepted. Both are optional;
-	* Fixed InvokeClient unhandled exception when calling with a non-player argument. - @SuperPuiu
-	* Fixed Sanitizer skipping first argument even if it's called on client side. - @SuperPuiu
-	* Code cleanups. -@watdahecklol32
+	* Implemented Parallel config option; - @SuperPuiu
+	* Implemented -silence-all flag; - @SuperPuiu
+	* Added some missing types; -@SuperPuiu
+	* Fixed a bunch of types; -@WATDAHECKLOL32
+	* Fixed Parallel; -@WATDAHECKLOL32
+	* Added ConnectOnParallel; -@WATDAHECKLOL32
+	* Code clean ups; -@WATDAHECKLOL32
 ]]
 
 local Network = {};
@@ -23,38 +22,39 @@ local RemoteEvents: (RemoteEvents) = {};
 local RemoteFunctions: (RemoteFunctions) = {};
 local BindedEvents: (Bindings) = {};
 
-local ReplicatedStorage = game:FindService("ReplicatedStorage");
-local Players = game:FindService("Players");
+local ReplicatedStorage: ReplicatedStorage = game:FindService("ReplicatedStorage");
+local Players: Players = game:FindService("Players");
+local RunService: RunService = game:FindService("RunService");
 
-local NetworkEvent = ReplicatedStorage:FindFirstChild("NetworkEvent");
-local NetworkFunction = ReplicatedStorage:FindFirstChild("NetworkFunction");
-local NetworkUnreliable = ReplicatedStorage:FindFirstChild("NetworkUnreliable");
+local Actor: Actor = script:GetActor();
 
-local RunService = game:FindService("RunService");
+local NetworkEvent = ReplicatedStorage:FindFirstChild("NetworkEvent") :: RemoteEvent;
+local NetworkFunction = ReplicatedStorage:FindFirstChild("NetworkFunction") :: RemoteFunction;
+local NetworkUnreliable = ReplicatedStorage:FindFirstChild("NetworkUnreliable") :: UnreliableRemoteEvent;
+
 local IsServer: (boolean) = RunService:IsServer();
 
-local Flags = {
+local Flags: ({[string]: boolean}) = {
   ["-silence-sanitizer-warnings"] = false,
   ["-sanitizer-strict"] = true,
   ["-silence-all"] = false
 };
-
-export type RemoteEvents = {
+type RemoteEvents = {
   name: string;
   connection: (string) -> RBXScriptConnection;
 };
 
-export type Bindings = {
+type Bindings = {
   name: string;
   connection: (string) -> RBXScriptConnection;
 };
 
-export type RemoteFunctions = {
+type RemoteFunctions = {
   name: string;
   connection: (string) -> RBXScriptConnection;
 };
 
-local function NetworkAssert(Condition, ...)
+local function NetworkAssert(Condition: (any), ...: any): ()
   if not Condition then
     local Pack = {...};
     local l_Str = Pack[1];
@@ -65,10 +65,10 @@ local function NetworkAssert(Condition, ...)
   end;
 end;
 
-local function Sanitize(Data, FunctionName, ...)
+local function Sanitize(Data: ({[string]: any}), FunctionName: (string), ...: any): boolean
   local Arguments = {...};
   local TableLen = RunService:IsServer() and #Arguments - 1 or #Arguments;
-  local Silence = Flags["-silence-sanitizer-warnings"]; 
+  local Silence = Flags["-silence-sanitizer-warnings"] or Flags["-silence-all"];
 
   if not Data.Configuration.Variadic and TableLen ~= #Data.Configuration.Sanitize.Arguments then 
     local Message = string.format("Less or more arguments than sanitized arguments detected for %s. (expected %i got %i)", FunctionName, #Data.Configuration.Sanitize.Arguments, TableLen);
@@ -131,10 +131,12 @@ local function Sanitize(Data, FunctionName, ...)
   return true;
 end;
 
-local function CallEventsCallbacks(Name, ...) : ()
+local function CallEventsCallbacks(Name: (string), Parallel: boolean, ...: any) : ()
   NetworkAssert(RemoteEvents[Name], "NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
 
   for Index, Data in pairs(RemoteEvents[Name]) do
+    if Parallel and not Data.Configuration.Parallel then continue; end;
+    
     local Safe = true;
 
     if Data.Configuration.Sanitize.Enabled then
@@ -149,7 +151,7 @@ local function CallEventsCallbacks(Name, ...) : ()
   end;
 end;
 
-local function WaitForEventInternal(ConnectionName, ConnectionType)
+local function WaitForEventInternal(ConnectionName: (string), ConnectionType: (number))
   local InternalTable;
   
   if ConnectionType == 1 then
@@ -163,7 +165,7 @@ local function WaitForEventInternal(ConnectionName, ConnectionType)
   repeat task.wait(); until InternalTable[ConnectionName];
 end;
 
-function Network:WaitForEvent(ConnectionName: (string), Player: (Player), ConnectionType: number)
+function Network:WaitForEvent(ConnectionName: (string), Player: (Player), ConnectionType: (number)): boolean
   NetworkAssert(typeof(ConnectionName) == "string", "Attempted to call WaitForEvent with invalid ConnectionName type (expected string, got %s)", typeof(ConnectionName));
   NetworkAssert(typeof(Player) == "Instance" or Player == nil, "Attempted to call WaitForEvent with invalid Player (expected Instance or nil, got %s)", typeof(Player));
   NetworkAssert(IsServer and Player ~= nil, "Attempted to call WaitForEvent with Player non null from client.");
@@ -184,7 +186,7 @@ function Network:WaitForEvent(ConnectionName: (string), Player: (Player), Connec
     end;
   else
     local WarnTask = task.delay(3, warn, InfiniteMessage);
-   
+  
     Network:InvokeClient(Player, "Puius_WaitForEvent", ConnectionName, ConnectionType);
     
     task.cancel(WarnTask);
@@ -192,7 +194,7 @@ function Network:WaitForEvent(ConnectionName: (string), Player: (Player), Connec
   end;
 end;
 
-function Network:CallBinding(Name, ...) : ()
+function Network:CallBinding(Name: (string), ...: any) : ()
   NetworkAssert(BindedEvents[Name], "Binding \"%s\" does not exist.", Name);
 
   for _, Func in pairs(BindedEvents[Name]) do
@@ -204,9 +206,13 @@ function Network:DefineEvents(Sanziter: {[string]: any}, Events: {[string]: any}
   NetworkAssert(Events and typeof(Events) == "table", `Invalid Events table (expected table, got %s)`, typeof(Events));
   NetworkAssert(Sanziter and typeof(Sanziter) == "table", `Invalid Sanitizer table (expected table, got %s)`, typeof(Events));
 	
-	local ok: {[number]: number} = {};
+  local ok: {[number]: number} = {};
+  
 	for i: string, v: (...any) -> (...any) in Events do
-		if type(i) ~= "string" then continue; end;
+    if type(i) ~= "string" then 
+      continue;
+    end;
+    
 		if Sanziter[i] then
 			local Id = Network.ConnectOnEventSanitized(i, Sanziter[i], v);
 			table.insert(ok, Id);
@@ -219,7 +225,7 @@ function Network:DefineEvents(Sanziter: {[string]: any}, Events: {[string]: any}
 	return ok;
 end;
 
-function Network.ConnectBinding(Name, Func) : ()
+function Network.ConnectBinding(Name: string, Func: any) : ()
   NetworkAssert(typeof(Name) == "string", "Attempted to connect binding with invalid Name. (string expected, got %s)", typeof(Name));
   NetworkAssert(typeof(Func) == "function", "Attempted to connect binding with invalid Func. (function expected, got %s)", typeof(Func));
 
@@ -229,41 +235,41 @@ function Network.ConnectBinding(Name, Func) : ()
   return #BindedEvents[Name];
 end;
 
-function Network.RemoveBinding(Name, ID)
+function Network.RemoveBinding(Name: string, ID: number): ()
   NetworkAssert(BindedEvents[Name], "Attempted to remove unknown function name (%s is an invalid table key)", tostring(Name) or "");
   NetworkAssert(BindedEvents[Name][ID], "Attempted to remove invalid index (%s is an invalid table key)", tostring(ID) or "");
 
   BindedEvents[Name][ID] = nil;
 end;
 
-function Network.RemoveAllBindings(Name)
+function Network.RemoveAllBindings(Name: string): ()
   NetworkAssert(BindedEvents[Name], "Attempted to remove unknown bindings (%s is an invalid table key)", tostring(Name) or "");
   BindedEvents[Name] = nil;
 end;
 
-function Network.ConnectOnEventSanitized(Name: (string), SanitizerTable: {[number]: {[string]: any}}, Func: (any))
+function Network.ConnectOnEventSanitized(Name: (string), SanitizerTable: {[any]: {[any]: any}}?, Func: (...any) -> (...any)): number
   NetworkAssert(typeof(Name) == "string", "Attempted to create a remote connection with a Name that is not a string.");
   NetworkAssert(typeof(SanitizerTable) == "table" or SanitizerTable == nil, "Attempted to create a remote connection with wrong SanitizerTable table type.");
   NetworkAssert(typeof(Func) == "function", "Attempted to create a remote connection with a non function argument (expected function, got %s)", typeof(Func));
   local IsEmpty = SanitizerTable ~= nil;
 
-  if SanitizerTable == nil then SanitizerTable = {}; end;
+  if SanitizerTable == nil then SanitizerTable = {} :: {}; end;
 
   if not RemoteEvents[Name] then RemoteEvents[Name] = {}; end;
-  if typeof(SanitizerTable.Enabled) ~= "boolean" then SanitizerTable.Enabled = IsEmpty; end;
+  if SanitizerTable and typeof(SanitizerTable.Enabled) ~= "boolean" then SanitizerTable.Enabled = IsEmpty; end;
 
   table.insert(RemoteEvents[Name], {Connection = Func, Configuration = {Sanitize = SanitizerTable}});
   return #RemoteEvents[Name];
 end;
 
-function Network.ModifyConnectionSanitizer(Connection: (string), ID: (number), Sanitizer: {[number]: {[string]: any}})
+function Network.ModifyConnectionSanitizer(Connection: (string), ID: (number), Sanitizer: {[number]: {[string]: any}}): ()
   NetworkAssert(typeof(Sanitizer) == "table", "Attempted to change connection sanitizer with invalid table.");
   NetworkAssert(typeof(Connection) == "string", "Attempted to change invalid connection index.");
 
   RemoteEvents[Connection][ID].Configuration.Sanitize = Sanitizer;
 end;
 
-function Network.ModifyConnectionConfiguration(Connection: (string), ID: (number), Entry: (string), State: (any))
+function Network.ModifyConnectionConfiguration(Connection: (string), ID: (number), Entry: (string), State: (any)): ()
   NetworkAssert(typeof(ID) == "number", "Attempted to change invalid connection index.");
   NetworkAssert(typeof(Connection) == "string", "Attempted to change invalid connection name's index.");
   NetworkAssert(typeof(Entry) == "string", "Attempted to change entry of invalid name (expected string as Entry argument).");
@@ -280,11 +286,17 @@ function Network.ModifyConnectionConfiguration(Connection: (string), ID: (number
   return true;
 end;
 
-function Network.ConnectOnEvent(Name: (string), Func: (any)) : ()
+function Network.ConnectOnEvent(Name: (string), Func: (...any) -> (...any)) : ()
   return Network.ConnectOnEventSanitized(Name, nil, Func);
 end;
 
-function Network.ConnectOnEventOnce(Name: (string), Func: (any)) : ()
+function Network.ConnectOnParallel(Name: string, Func: (...any) -> (...any)): number
+	local ID: number = Network.ConnectOnEventSanitized(Name, nil, Func);
+	Network.ModifyConnectionConfiguration(Name, ID, "Parallel", true);
+	return ID;	
+end;
+
+function Network.ConnectOnEventOnce(Name: (string), Func: (any)): number
   local ID = Network.ConnectOnEventSanitized(Name, nil, Func);
   Network.ModifyConnectionConfiguration(Name, ID, "Once", true);
   return ID;
@@ -309,7 +321,7 @@ function Network.Disconnect(Name: (string), ID: (number)) : ()
   RemoteEvents[Name][ID] = nil;
 end;
 
-Network.ConnectOnInvoke("Puius_WaitForEvent", function(...)
+Network.ConnectOnInvoke("Puius_WaitForEvent", function(...: any): boolean
   local Args = {...};
   local ConnectionName, ConnectionType;
   
@@ -359,7 +371,7 @@ if IsServer then
     NetworkUnreliable:FireClient(Player, ...);
   end;
 
-  function Network:FireAllClientsExcept(Exception: (Player), ...) : ()
+  function Network:FireAllClientsExcept(Exception: (Player?), ...: any) : ()
     NetworkAssert(IsServer, "Unable to call method FireAllClientsExcept from client.");
 
     for _, Player in pairs(Players:GetPlayers()) do
@@ -370,7 +382,7 @@ if IsServer then
   end;
 
 
-  function Network:FireAllClientsExceptUnreliable(Exception: (Player), ...) : ()
+  function Network:FireAllClientsExceptUnreliable(Exception: (Player?), ...: any) : ()
     NetworkAssert(IsServer, "Unable to call method FireAllClientsExcept from client.");
 
     for _, Player in pairs(Players:GetPlayers()) do
@@ -390,7 +402,7 @@ if IsServer then
     Network:FireAllClientsExceptUnreliable(nil, ...);
   end;
 
-  function Network:InvokeClient(Player: (Player), ...) : ()
+  function Network:InvokeClient(Player: (Player), ...: any) : ()
     NetworkAssert(Player, "Unable to invoke client function without a specified client.");
     NetworkAssert(typeof(Player) == "Instance", "Unable to invoke client with a non-instance Player.");
     NetworkAssert(Player:IsA("Player"), "Unable to invoke client (provided Player isn't a player instance.)");
@@ -399,55 +411,83 @@ if IsServer then
     return NetworkFunction:InvokeClient(Player, ...);
   end;
 
-  NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...)
-    NetworkAssert(RemoteFunctions[Name], "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
-    return RemoteFunctions[Name](Player, ...);
+  NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...: any): any
+	local event = RemoteEvents[Name] or RemoteFunctions[Name];
+	NetworkAssert(event, "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
+     return event[1].Connection(Player, ...);
   end;
 
-  NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...)
-    CallEventsCallbacks(Name, Player, ...);
+  NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...: any): ()
+	if Name and type(Name) == "string" and RemoteEvents[Name] then -- if u want to have a better patch then go for it
+		 local Data = RemoteEvents[Name];
+		 for _: unknown, v: {[string]: any} in Data do
+			if type(v) ~= "table" or not v.Configuration then continue; end;
+			if v.Configuration.Parallel then return; end;
+		 end;
+	 end;
+    	  CallEventsCallbacks(Name, false, Player, ...);
   end);
 
-  NetworkUnreliable.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...)
-    CallEventsCallbacks(Name, Player, ...);
+  NetworkUnreliable.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...: any): ()
+    CallEventsCallbacks(Name, false, Player, ...);
   end);
+  
+  if Actor then
+    NetworkEvent.OnServerEvent:ConnectParallel(function(Player: (Player), Name: (string), ...): ()
+        CallEventsCallbacks(Name, true, Player, ...);
+    end);
+
+    NetworkUnreliable.OnServerEvent:ConnectParallel(function(Player: (Player), Name: (string), ...: any): ()
+      CallEventsCallbacks(Name, true, Player, ...);
+    end);
+  end;
 else
   if not NetworkFunction then
-    NetworkFunction = game.ReplicatedStorage:WaitForChild("NetworkFunction");
+    NetworkFunction = ReplicatedStorage:WaitForChild("NetworkFunction");
   end;
 
   if not NetworkEvent then
-    NetworkEvent = game.ReplicatedStorage:WaitForChild("NetworkEvent");
+    NetworkEvent = ReplicatedStorage:WaitForChild("NetworkEvent");
   end;
 
   if not NetworkUnreliable then
-    NetworkUnreliable = game.ReplicatedStorage:WaitForChild("NetworkUnreliable");
+    NetworkUnreliable = ReplicatedStorage:WaitForChild("NetworkUnreliable");
   end;
 
-  function Network:FireServer(...) : ()
+  function Network:FireServer(...: any) : ()
     NetworkAssert(not IsServer, "Attempted to fire event from server to server.");
     NetworkEvent:FireServer(...);	
   end;
 
-  function Network:FireServerUnreliable(...) : ()
+  function Network:FireServerUnreliable(...: any) : ()
     NetworkAssert(not IsServer, "Attempted to fire event from server to server.");
     NetworkUnreliable:FireServer(...);	
   end;
 
-  function Network:InvokeServer(...) : ()
+  function Network:InvokeServer(...: any) : ()
     NetworkAssert(not IsServer, "Attempted to invoke server from server.");
     return NetworkFunction:InvokeServer(...);
   end;
   
-  NetworkEvent.OnClientEvent:Connect(function(Name: (string), ...)
-    CallEventsCallbacks(Name, ...);
+  NetworkEvent.OnClientEvent:Connect(function(Name: (string), ...: any): ()
+    CallEventsCallbacks(Name, false, ...);
   end);
-
-  NetworkUnreliable.OnClientEvent:Connect(function(Name: (string), ...)
-    CallEventsCallbacks(Name, ...);
+  
+  NetworkUnreliable.OnClientEvent:Connect(function(Name: (string), ...: any): ()
+    CallEventsCallbacks(Name, false, ...);
   end);
-
-  NetworkFunction.OnClientInvoke = function(Name: (string), ...)
+  
+  if Actor then
+    NetworkEvent.OnClientEvent:ConnectParallel(function(Name: (string), ...: any): ()
+      CallEventsCallbacks(Name, true, ...);
+    end);
+    
+    NetworkUnreliable.OnClientEvent:ConnectParallel(function(Name: (string), ...: any): ()
+      CallEventsCallbacks(Name, true, ...);
+    end);
+  end;
+  
+  NetworkFunction.OnClientInvoke = function(Name: (string), ...: any): any
     NetworkAssert(RemoteFunctions[Name], "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
     return RemoteFunctions[Name](...);
   end;

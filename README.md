@@ -91,7 +91,7 @@ local Sanitizer = {
       {
         Type = "string",
         Nullable = false
-        MaxLength = 256
+        Max = 256
       },
 
       {

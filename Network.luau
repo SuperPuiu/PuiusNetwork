@@ -8,9 +8,7 @@
 	Run context:  Shared
 	
 	Changelog:
-	* Rename sanitizer property for numbers and strings. More specifically:
-	 > Smallest > Min,
-	 > Largest > Max
+	* Fix RemoteFunction invocation - @SuperPuiu
 ]]
 
 local Network = {};
@@ -408,9 +406,8 @@ if IsServer then
 	end;
 
 	NetworkFunction.OnServerInvoke = function(Player: (Player), Name: (string), ...: any): any
-		local event = RemoteEvents[Name] or RemoteFunctions[Name];
-		NetworkAssert(event, "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
-		return event[1].Connection(Player, ...);
+		NetworkAssert(RemoteFunctions[Name], "NetworkFunction invoked with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
+		return RemoteFunctions[Name](Player, ...);
 	end;
 
 	NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...: any): ()
@@ -421,6 +418,7 @@ if IsServer then
 				if v.Configuration.Parallel then return; end;
 			end;
 		end;
+		
 		CallEventsCallbacks(Name, false, Player, ...);
 	end);
 

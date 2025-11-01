@@ -8,7 +8,9 @@
 	Run context:  Shared
 	
 	Changelog:
-	* Fix RemoteFunction invocation - @SuperPuiu
+	* FireAllClients directly passed the arguments to :FireAllClients method of the specified RemoteEvent - @SuperPuiu
+	* Remove possible unecessary code- @SuperPuiu
+	* Disconnect now removes the main entry from the event table if the entry contains no additional connections - @SuperPuiu
 ]]
 
 local Network = {};
@@ -129,7 +131,9 @@ local function CallEventsCallbacks(Name: (string), Parallel: boolean, ...: any) 
 	NetworkAssert(RemoteEvents[Name], "NetEvent fired with unknown function name. (%s is an invalid table key)", tostring(Name) or "");
 
 	for Index, Data in pairs(RemoteEvents[Name]) do
-		if Parallel and not Data.Configuration.Parallel then continue; end;
+		if Parallel and not Data.Configuration.Parallel then 
+			continue; 
+		end;
 
 		local Safe = true;
 
@@ -137,7 +141,9 @@ local function CallEventsCallbacks(Name: (string), Parallel: boolean, ...: any) 
 			Safe = Sanitize(Data, Name, ...);
 		end;
 
-		if not Safe then continue; end;
+		if not Safe then 
+			continue; 
+		end;
 
 		Data.Connection(...);
 
@@ -313,6 +319,10 @@ function Network.Disconnect(Name: (string), ID: (number)) : ()
 	NetworkAssert(RemoteEvents[Name][ID], "Attempted to remove invalid index (%s is an invalid table key)", tostring(ID) or "");
 
 	RemoteEvents[Name][ID] = nil;
+	
+	if (#RemoteEvents[Name] == 0) then
+		RemoteEvents[Name] = nil;
+	end;
 end;
 
 Network.ConnectOnInvoke("Puius_WaitForEvent", function(...: any): boolean
@@ -367,14 +377,13 @@ if IsServer then
 
 	function Network:FireAllClientsExcept(Exception: (Player?), ...: any) : ()
 		NetworkAssert(IsServer, "Unable to call method FireAllClientsExcept from client.");
-
+		
 		for _, Player in pairs(Players:GetPlayers()) do
 			if Player ~= Exception then
 				Network:FireClient(Player, ...);
 			end;
 		end;
 	end;
-
 
 	function Network:FireAllClientsExceptUnreliable(Exception: (Player?), ...: any) : ()
 		NetworkAssert(IsServer, "Unable to call method FireAllClientsExcept from client.");
@@ -388,12 +397,12 @@ if IsServer then
 
 	function Network:FireAllClients(...: any): ()
 		NetworkAssert(IsServer, "Unable to call method FireAllClients from client.");
-		Network:FireAllClientsExcept(nil, ...);
+		NetworkEvent:FireAllClients(...);
 	end;
 
 	function Network:FireAllClientsUnreliable(...: any): ()
 		NetworkAssert(IsServer, "Unable to call method FireAllClientsUnreliable from client.");
-		Network:FireAllClientsExceptUnreliable(nil, ...);
+		NetworkUnreliable:FireAllClients(...);
 	end;
 
 	function Network:InvokeClient(Player: (Player), ...: any) : ()
@@ -411,14 +420,6 @@ if IsServer then
 	end;
 
 	NetworkEvent.OnServerEvent:Connect(function(Player: (Player), Name: (string), ...: any): ()
-		if Name and type(Name) == "string" and RemoteEvents[Name] then -- if u want to have a better patch then go for it
-			local Data = RemoteEvents[Name];
-			for _: unknown, v: {[string]: any} in Data do
-				if type(v) ~= "table" or not v.Configuration then continue; end;
-				if v.Configuration.Parallel then return; end;
-			end;
-		end;
-		
 		CallEventsCallbacks(Name, false, Player, ...);
 	end);
 
@@ -450,12 +451,12 @@ else
 
 	function Network:FireServer(...: any) : ()
 		NetworkAssert(not IsServer, "Attempted to fire event from server to server.");
-		NetworkEvent:FireServer(...);	
+		NetworkEvent:FireServer(...);
 	end;
 
 	function Network:FireServerUnreliable(...: any) : ()
 		NetworkAssert(not IsServer, "Attempted to fire event from server to server.");
-		NetworkUnreliable:FireServer(...);	
+		NetworkUnreliable:FireServer(...);
 	end;
 
 	function Network:InvokeServer(...: any) : ()
